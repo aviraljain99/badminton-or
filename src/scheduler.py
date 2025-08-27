@@ -3,7 +3,7 @@ from ortools.sat.python import cp_model
 import logging
 
 from session_config import player_data, ROUNDS, COURTS, TEAMS, PLAYERS, MIN_GAMES, MAX_GAMES
-from md_writer import get_table_headers, get_games_in_round, get_round_as_md
+from md_writer import get_table_headers, get_games_in_round, get_round_as_md, get_players_on_break, get_empty_row
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,10 @@ for p in range(PLAYERS):
     for r1 in range(ROUNDS - 2):
         model.add(sum(variables[(p, r2, c, t)] for c in range(COURTS) for t in range(TEAMS) for r2 in range(r1, r1 + 3)) >= 1)
 
+# Add a constraint that an individual only gets at most 3 games in a row
+for p in range(PLAYERS):
+    for r1 in range(ROUNDS - 3):
+        model.add(sum(variables[(p, r2, c, t)] for c in range(COURTS) for t in range(TEAMS) for r2 in range(r1, r1 + 4)) <= 3)
 
 # Adds constraint such that every team will only have TWO players on a given court and a given round
 for r in range(ROUNDS):
@@ -144,6 +148,7 @@ if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         f.write("## Schedule\n\n")
         f.write(get_table_headers() + "\n")
         for round_id, games_in_round in enumerate(rounds_in_session):
-            f.write(get_round_as_md(games_in_round, round_id))
+            f.write(get_round_as_md(games_in_round, round_id, get_players_on_break(round_id, variables, solver)))
+            f.write(get_empty_row())
         f.write("\n")
     
