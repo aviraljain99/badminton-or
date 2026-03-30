@@ -2,7 +2,7 @@
 from ortools.sat.python import cp_model
 import logging
 
-from session_config import player_data, ROUNDS, COURTS, TEAMS, PLAYERS, MIN_GAMES, MAX_GAMES
+from session_config import player_data, ROUNDS, COURTS, TEAM_SIZE, PLAYERS, MIN_GAMES, MAX_GAMES
 from md_writer import get_table_headers, get_games_in_round, get_round_as_md, get_players_on_break, get_empty_row
 
 logger = logging.getLogger(__name__)
@@ -143,7 +143,7 @@ if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         games_in_round: list[list[list[str]]] = get_games_in_round(r, solver, variables)
         rounds_in_session.append(games_in_round)
     
-    with open("test_schedule.md", "w") as f:
+    with open("test_schedule_2.md", "w") as f:
         f.write("# Badminton Schedule\n\n")
         f.write("## Schedule\n\n")
         f.write(get_table_headers() + "\n")
