@@ -1,5 +1,7 @@
 """Represents entities in a session"""
+
 from typing import TypedDict
+
 
 class Player(TypedDict):
     name: str
@@ -14,13 +16,12 @@ class Team(TypedDict):
 class SessionAllocation:
     def __init__(self):
         pass
-        # { 
-        #   round_id : 
-        #       { 
-        #           court_id : { team_1 : [player_id, player_id], team_2 : [player_id, player_id] } 
-        #       } 
+        # {
+        #   round_id :
+        #       {
+        #           court_id : { team_1 : [player_id, player_id], team_2 : [player_id, player_id] }
+        #       }
         # }
-
 
     def add_teams_to_court_in_round(self, court_id: int, round_int: int) -> None:
         pass

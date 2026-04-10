@@ -1,9 +1,11 @@
 """Simple solve."""
+
 from ortools.sat.python import cp_model
 import logging
 
 from core import session
 from test_config import player_data, ROUNDS, COURTS, MIN_GAMES, MAX_GAMES
+
 logger = logging.getLogger(__name__)
 
 tuesday_session = session.Session(player_data, COURTS, ROUNDS, MIN_GAMES, MAX_GAMES)
@@ -45,7 +47,7 @@ if solver_status == cp_model.OPTIMAL or solver_status == cp_model.FEASIBLE:
     #     for r in range(ROUNDS):
     #         if sum(solver.value(variables[(p, r, c, t)]) for c in range(COURTS) for t in range(TEAMS)) > 1:
     #             print(f"Player {p} plays more than once in round {r}")
-    
+
     # # Checks how many times two PLAYERS play together
     # player_pairs = [[0] * PLAYERS for _ in range(PLAYERS)]
     # for p1 in range(PLAYERS):
@@ -66,7 +68,7 @@ if solver_status == cp_model.OPTIMAL or solver_status == cp_model.FEASIBLE:
     # for r in range(ROUNDS):
     #     games_in_round: list[list[list[str]]] = get_games_in_round(r, solver, variables)
     #     rounds_in_session.append(games_in_round)
-    
+
     # with open("test_schedule_2.md", "w") as f:
     #     f.write("# Badminton Schedule\n\n")
     #     f.write("## Schedule\n\n")
@@ -96,7 +98,7 @@ if solver_status == cp_model.OPTIMAL or solver_status == cp_model.FEASIBLE:
 #                     # Creates a variable to represent when two PLAYERS are in the same team
 #                     variables[(p1, p2, r, c, t)] = model.new_int_var(0, 1, f"x_{p1}x{p2}_{r}_{c}_{t}")
 
-#                     # These constraints ensure that the variable for two PLAYERS being on the same team is true 
+#                     # These constraints ensure that the variable for two PLAYERS being on the same team is true
 #                     # when they are on the same team and false when they are not
 #                     model.add((2 * variables[(p1, p2, r, c, t)]) < (variables[(p1, r, c, t)] + variables[(p2, r, c, t)] + 1))
 #                     model.add((2 * variables[(p1, p2, r, c, t)]) + 2 > (variables[(p1, r, c, t)] + variables[(p2, r, c, t)]))
@@ -142,7 +144,7 @@ if solver_status == cp_model.OPTIMAL or solver_status == cp_model.FEASIBLE:
 #                     model.add(
 #                         sum(
 #                             variables[(p, r1, c, t)] for r1 in range(r + 1) for c in range(COURTS) for t in range(TEAMS)
-#                         ) >= 
+#                         ) >=
 #                         sum(
 #                             variables[(p1, r1, c, t)] for r1 in range(r + 1) for c in range(COURTS) for t in range(TEAMS)
 #                         )
@@ -152,5 +154,3 @@ if solver_status == cp_model.OPTIMAL or solver_status == cp_model.FEASIBLE:
 # # Creates the solver and solves the model.
 # solver = cp_model.CpSolver()
 # status = solver.solve(model)
-
-    
