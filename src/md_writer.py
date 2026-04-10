@@ -1,7 +1,7 @@
 """Writes the schedule to a markdown file"""
 from ortools.sat.python.cp_model import CpSolver, IntVar
 
-from session_config import player_data, COURTS, TEAMS
+from test_config import player_data, COURTS, TEAMS
 
 def get_table_headers() -> str:
     return "\n".join(["| Round | Court | Team-A | | Team-B | | Break |", "|-|-|-|-|-|-|-|"])

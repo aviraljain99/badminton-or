@@ -1,14 +1,18 @@
-from session_config import player_data, TEAM_SIZE, MIN_GAMES, MAX_GAMES
+from test_config import TEAM_SIZE
 from ortools.sat.python import cp_model
+from ortools.sat.cp_model_pb2 import CpSolverStatus
 
-from core.entity import Player, SessionAllocation
+from core.entity import Player
 
 class Session:
-    def __init__(self, players: list[Player], courts: int, rounds: int):
+    def __init__(self, players: list[Player], courts: int, rounds: int, min_games: int, max_games: int):
         self.players = players
         self.TOTAL_PLAYERS = len(self.players)
         self.COURTS = courts
         self.ROUNDS = rounds
+
+        self.min_games = min_games
+        self.max_games = max_games
 
         # Model variables
         self.model = cp_model.CpModel()
@@ -33,10 +37,12 @@ class Session:
         self.__min_max_games_constraint()
         self.__permanents_play_more_than_casuals()
 
-    def solve_session(self):
+    def solve_session(self) -> tuple[CpSolverStatus, cp_model.CpSolver]:
         # Creates the solver and solves the model.
         solver = cp_model.CpSolver()
         status = solver.solve(self.model)
+
+        return status, solver
 
 
     def __initialize_player_variables(self):
@@ -96,16 +102,16 @@ class Session:
     def __min_max_games_constraint(self):
         # Adds a constraint that all PLAYERS get to play 7 times across all the rounds
         for p in range(self.TOTAL_PLAYERS):
-            self.model.add(sum(self.variables[(p, r, c, t)] for r in range(self.ROUNDS) for c in range(self.COURTS) for t in range(TEAM_SIZE)) >= MIN_GAMES)
-            self.model.add(sum(self.variables[(p, r, c, t)] for r in range(self.ROUNDS) for c in range(self.COURTS) for t in range(TEAM_SIZE)) <= MAX_GAMES)
+            self.model.add(sum(self.variables[(p, r, c, t)] for r in range(self.ROUNDS) for c in range(self.COURTS) for t in range(TEAM_SIZE)) >= self.min_games)
+            self.model.add(sum(self.variables[(p, r, c, t)] for r in range(self.ROUNDS) for c in range(self.COURTS) for t in range(TEAM_SIZE)) <= self.max_games)
 
     def __permanents_play_more_than_casuals(self):
         for p in range(self.TOTAL_PLAYERS):
             for r in range(self.ROUNDS):
                 # Adds a constraint that if this player is permanent, they will have had more games than players who are casual
-                if player_data[p][1]:
+                if player_data[p]["member"]:
                     for p1 in range(self.TOTAL_PLAYERS):
-                        if not player_data[p1][1] and p != p1:
+                        if not player_data[p1]["member"] and p != p1:
                             self.model.add(
                                 sum(
                                     self.variables[(p, r1, c, t)] for r1 in range(r + 1) for c in range(self.COURTS) for t in range(TEAM_SIZE)
@@ -116,5 +122,5 @@ class Session:
                             )
 
 
-    def generate_session_allocation(self) -> SessionAllocation:
-        pass
+    # def generate_session_allocation(self) -> SessionAllocation:
+    #     pass
