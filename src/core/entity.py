@@ -1,14 +1,16 @@
 """Represents entities in a session"""
 
-from typing import TypedDict
+from typing import Optional, TypedDict
+from dataclasses import dataclass
 
-
-class Player(TypedDict):
+@dataclass
+class Player:
+    player_id: str
     name: str
-    member: bool
+    member: Optional[bool] = None
 
-
-class Team(TypedDict):
+@dataclass
+class Team:
     player_1: Player
     player_2: Player
 
