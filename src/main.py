@@ -17,7 +17,6 @@ def create_data_model():
     return data
 
 
-
 def main():
     data = create_data_model()
     # Create the mip solver with the SCIP backend.
@@ -67,4 +66,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

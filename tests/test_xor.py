@@ -1,5 +1,6 @@
 from ortools.sat.python import cp_model
 
+
 class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):
     """Print intermediate solutions."""
 
@@ -17,6 +18,7 @@ class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):
     @property
     def solution_count(self) -> int:
         return self.__solution_count
+
 
 variables = {}
 

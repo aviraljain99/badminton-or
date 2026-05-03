@@ -29,7 +29,7 @@ player_data: list[Player] = [
     {"name": "Harry P", "member": False},
     {"name": "Annie George", "member": False},
     {"name": "Ravi", "member": False},
-    {"name": "Sachi", "member": False}
+    {"name": "Sachi", "member": False},
 ]
 
 PLAYERS = len(player_data)
