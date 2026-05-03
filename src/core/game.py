@@ -9,6 +9,7 @@ class Game:
     team1: Team
     team2: Team
     start_time: datetime.datetime
+    session_id: str
     end_time: datetime.datetime | None = None
     team1_score: int | None = None
     team2_score: int | None = None
