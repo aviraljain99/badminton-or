@@ -1,16 +1,31 @@
 """Represents entities in a session"""
 
-from typing import TypedDict
+import datetime
+from typing import Optional, TypedDict
+from dataclasses import dataclass
 
-
-class Player(TypedDict):
+@dataclass
+class Player:
+    player_id: str
     name: str
-    member: bool
+    member: Optional[bool] = None
 
-
-class Team(TypedDict):
+@dataclass
+class Team:
     player_1: Player
     player_2: Player
+
+
+@dataclass
+class Session:
+    session_id: str
+    session_date: str
+    status: str = "finished"
+    start_time: Optional[datetime.datetime] = None
+    end_time: Optional[datetime.datetime] = None
+    location: Optional[str] = None
+    courts: Optional[int] = None
+    shuttles_used: Optional[int] = None
 
 
 class SessionAllocation:
