@@ -32,8 +32,8 @@ def _():
     player_preferences = {
         "sandy" : {
             "pair_up_preference" : [
-                ("rahul", 1), 
-                ("habby", 2), 
+                ("rahul", 1),
+                ("habby", 2),
                 ("sumit", 3),
                 ("annie_george", 4),
                 ("thenes", 5),
@@ -55,7 +55,7 @@ def _():
             "avoid" : ["pritto", "akhil_srikanth", "yaw"]
         }
     }
-    return
+    return (player_preferences,)
 
 
 @app.cell
@@ -84,7 +84,29 @@ def _():
     ROUNDS = 9
     COURTS = 3
     N_PLAYERS = len(player_data)
-    return (COURTS, N_PLAYERS, ROUNDS, player_data,)
+    return COURTS, ROUNDS, player_data
+
+
+@app.cell
+def _(player_data, player_preferences):
+    def _compute_score(p, p_prime):
+        if p not in player_preferences:
+            return 0
+        pair_up = {player: rank for player, rank in player_preferences[p]["pair_up_preference"]}
+        l_p = len(pair_up)
+        if p_prime in pair_up:
+            return (10 / (l_p + 1)) * (l_p + 2 - pair_up[p_prime])
+        else:
+            return 10 / (l_p + 1)
+
+    _players = [p["user_id"] for p in player_data]
+    preference_score = {
+        (p, p_prime): _compute_score(p, p_prime)
+        for p in _players
+        for p_prime in _players
+        if p != p_prime
+    }
+    return
 
 
 @app.cell(hide_code=True)
@@ -147,8 +169,7 @@ def _(COURTS, ROUNDS, player_data, pywraplp):
         for p in players
         for r in rounds
     }
-
-    return M, combinations, courts, m, player_pairs, players, rounds, solver, x, y, y_r, y_rc, z
+    return
 
 
 if __name__ == "__main__":
