@@ -15,7 +15,7 @@ def _():
 def _():
     from ortools.linear_solver import pywraplp
 
-    return
+    return (pywraplp,)
 
 
 @app.cell(hide_code=True)
@@ -84,12 +84,71 @@ def _():
     ROUNDS = 9
     COURTS = 3
     N_PLAYERS = len(player_data)
+    return (COURTS, N_PLAYERS, ROUNDS, player_data,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Variables
+    """)
     return
 
 
 @app.cell
-def _():
-    return
+def _(COURTS, ROUNDS, player_data, pywraplp):
+    from itertools import combinations
+
+    players = [p["user_id"] for p in player_data]
+    player_pairs = list(combinations(players, 2))
+    rounds = range(ROUNDS)
+    courts = range(COURTS)
+
+    solver = pywraplp.Solver.CreateSolver('SCIP')
+
+    # x[p1, p2, r, c]: p1 and p2 are paired as a team on court c in round r
+    x = {
+        (p1, p2, r, c): solver.BoolVar(f'x_{p1}_{p2}_{r}_{c}')
+        for (p1, p2) in player_pairs
+        for r in rounds
+        for c in courts
+    }
+
+    # y_rc[p1, p2, r, c]: p1 and p2 opposed each other on court c in round r
+    y_rc = {
+        (p1, p2, r, c): solver.BoolVar(f'y_rc_{p1}_{p2}_{r}_{c}')
+        for (p1, p2) in player_pairs
+        for r in rounds
+        for c in courts
+    }
+
+    # y_r[p1, p2, r]: p1 and p2 opposed each other in round r
+    y_r = {
+        (p1, p2, r): solver.BoolVar(f'y_r_{p1}_{p2}_{r}')
+        for (p1, p2) in player_pairs
+        for r in rounds
+    }
+
+    # y[p1, p2]: p1 and p2 opposed each other at any point in the session
+    y = {
+        (p1, p2): solver.BoolVar(f'y_{p1}_{p2}')
+        for (p1, p2) in player_pairs
+    }
+
+    # M: maximum number of games played by any player
+    M = solver.IntVar(0, ROUNDS, 'M')
+
+    # m: minimum number of games played by any player
+    m = solver.IntVar(0, ROUNDS, 'm')
+
+    # z[p, r]: whether player p played in round r
+    z = {
+        (p, r): solver.BoolVar(f'z_{p}_{r}')
+        for p in players
+        for r in rounds
+    }
+
+    return M, combinations, courts, m, player_pairs, players, rounds, solver, x, y, y_r, y_rc, z
 
 
 if __name__ == "__main__":
