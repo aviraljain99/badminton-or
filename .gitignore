@@ -5,3 +5,6 @@
 */__marimo__/*
 
 */node_modules/*
+
+*build*
+*.tar.gz*
