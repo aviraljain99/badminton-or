@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.9"
+__generated_with = "0.23.14"
 app = marimo.App(width="full")
 
 
@@ -64,6 +64,11 @@ def _():
             ],
             "avoid" : []
         },
+        "jack" : {
+            "pair_up_preference" : [],
+            "avoid" : ["andy", "sachi"]
+        },
+
     }
     return (player_preferences,)
 
@@ -75,18 +80,30 @@ def _():
         {"user_id": "jack", "name": "Jack", "member": True, "level" : 5},
         {"user_id": "andy", "name": "Andy", "member": True, "level" : 5},
         {"user_id": "suandi", "name": "Suandi", "member": True, "level" : 5},
-        {"user_id": "harry", "name": "Harry", "member": True, "level" : 5},
-        {"user_id": "lesley", "name": "Lesley", "member": True, "level" : 2},
+        {"user_id": "harry", "name": "Harry", "member": True, "level" : 4},
+        {"user_id": "lesley", "name": "Lesley", "member": True, "level" : 1},
         {"user_id": "sumit", "name": "Sumit", "member": True, "level" : 5},
         {"user_id": "naresh", "name": "Naresh", "member": True, "level" : 3},
+        {"user_id": "aviral", "name": "Aviral", "member": True, "level" : 3},
+        {"user_id": "yaw", "name": "Yaw", "member": True, "level" : 4},
+        {"user_id": "pritto", "name": "Pritto", "member": True, "level" : 2},
+        {"user_id": "sachi", "name": "Sachi", "member": True, "level" : 2},
+        {"user_id": "kelvin", "name": "Kelvin", "member": True, "level" : 5},
+        {"user_id": "barrie", "name": "Barrie", "member": True, "level" : 5},
+        {"user_id": "annie", "name": "Annie", "member": True, "level" : 4},
+
+        # casuals
+        {"user_id": "nithin", "name": "Nithin", "member": False, "level" : 3},
         {"user_id": "shahar", "name": "Shahar", "member": False, "level" : 4},
-        {"user_id": "ulf", "name": "Ulf", "member": True, "level" : 3},
-        {"user_id": "sandy", "name": "Sandy", "member": True, "level" : 5},
-        {"user_id": "nithin", "name": "Nithin", "member": False, "level" : 4},
+        {"user_id": "danish", "name": "Danish", "member": False, "level" : 3},
+        {"user_id": "hridaan", "name": "Hridaan", "member": False, "level" : 5},
+        {"user_id": "chinu", "name": "Chinu", "member": False, "level" : 5},
+        {"user_id": "karthik", "name": "Karthik", "member": False, "level" : 4},
+        {"user_id": "hamza", "name": "Hamza", "member": False, "level" : 2},
     ]
 
     ROUNDS = 10
-    COURTS = 2
+    COURTS = 4
     N_PLAYERS = len(player_data)
     print(N_PLAYERS)
     return COURTS, ROUNDS, player_data
@@ -138,10 +155,21 @@ def _(COURTS, ROUNDS, cp_model, player_data, player_preferences):
 
     model = cp_model.CpModel()
 
-    # x[p1, p2, r, c]: p1 and p2 are paired as a team on court c in round r
+    # x[p1, p2, r, c, t]: p1 and p2 are paired as team t (0 or 1) on court c in round r
     x = {
-        (p1, p2, r, c): model.new_bool_var(f'x_{p1}_{p2}_{r}_{c}')
+        (p1, p2, r, c, t): model.new_bool_var(f'x_{p1}_{p2}_{r}_{c}_{t}')
         for (p1, p2) in player_pairs
+        for r in rounds
+        for c in courts
+        for t in range(2)
+    }
+
+    # diff[r, c]: absolute skill difference between the two teams on court c in round r
+    _level = {p["user_id"]: p["level"] for p in player_data}
+    _pair_skill = {(p1, p2): _level[p1] + _level[p2] for (p1, p2) in player_pairs}
+    _max_possible_diff = max(_pair_skill.values()) - min(_pair_skill.values())
+    diff = {
+        (r, c): model.new_int_var(0, _max_possible_diff, f'diff_{r}_{c}')
         for r in rounds
         for c in courts
     }
@@ -183,7 +211,20 @@ def _(COURTS, ROUNDS, cp_model, player_data, player_preferences):
         for p in players
         for r in range(ROUNDS - 2)
     }
-    return M, consec3, courts, m, model, player_pairs, players, rounds, w, x, z
+    return (
+        M,
+        consec3,
+        courts,
+        diff,
+        m,
+        model,
+        player_pairs,
+        players,
+        rounds,
+        w,
+        x,
+        z,
+    )
 
 
 @app.cell(hide_code=True)
@@ -196,10 +237,12 @@ def _(mo):
 
 @app.cell
 def _(
+    COURTS,
     M,
     ROUNDS,
     consec3,
     courts,
+    diff,
     m,
     model,
     player_data,
@@ -216,17 +259,39 @@ def _(
         for r in rounds:
             model.add(
                 sum(
-                    x[(p1, p2, r, c)]
+                    x[(p1, p2, r, c, t)]
                     for (p1, p2) in player_pairs
                     for c in courts
+                    for t in range(2)
                     if p1 == p or p2 == p
                 ) <= 1
             )
 
-    # Constraint 2: each court must have exactly 2 pairs (4 players) per round
+    # Constraint 2: each team slot must have exactly 1 pair per court per round
     for r in rounds:
         for c in courts:
-            model.add(sum(x[(p1, p2, r, c)] for (p1, p2) in player_pairs) == 2)
+            for t in range(2):
+                model.add(sum(x[(p1, p2, r, c, t)] for (p1, p2) in player_pairs) == 1)
+
+    # Symmetry breaking: team 0 always holds the lower-indexed pair in player_pairs,
+    # eliminating the 2^(ROUNDS*COURTS) symmetric solutions from swapping team labels.
+    for r in rounds:
+        for c in courts:
+            model.add(
+                sum(i * x[(p1, p2, r, c, 0)] for i, (p1, p2) in enumerate(player_pairs))
+                <=
+                sum(i * x[(p1, p2, r, c, 1)] for i, (p1, p2) in enumerate(player_pairs))
+            )
+
+    # Symmetry breaking: enforce a total ordering of courts within each round by their
+    # team-0 pair index, eliminating COURTS!^ROUNDS symmetric solutions from court swaps.
+    for r in rounds:
+        for c in range(COURTS - 1):
+            model.add(
+                sum(i * x[(p1, p2, r, c, 0)]     for i, (p1, p2) in enumerate(player_pairs))
+                <=
+                sum(i * x[(p1, p2, r, c + 1, 0)] for i, (p1, p2) in enumerate(player_pairs))
+            )
 
     _player_pairs_set = set(player_pairs)
 
@@ -240,16 +305,18 @@ def _(
             pair = (p, p_avoid) if (p, p_avoid) in _player_pairs_set else (p_avoid, p)
             for r in rounds:
                 for c in courts:
-                    model.add(x[(pair[0], pair[1], r, c)] == 0)
+                    for t in range(2):
+                        model.add(x[(pair[0], pair[1], r, c, t)] == 0)
 
     # z definition: z[p,r] = 1 iff player p plays in round r
     for p in players:
         for r in rounds:
             model.add(
                 z[(p, r)] == sum(
-                    x[(p1, p2, r, c)]
+                    x[(p1, p2, r, c, t)]
                     for (p1, p2) in player_pairs
                     for c in courts
+                    for t in range(2)
                     if p1 == p or p2 == p
                 )
             )
@@ -274,10 +341,11 @@ def _(
 
     def _total_games(p):
         return sum(
-            x[(p1, p2, r, c)]
+            x[(p1, p2, r, c, t)]
             for (p1, p2) in player_pairs
             for r in rounds
             for c in courts
+            for t in range(2)
             if p1 == p or p2 == p
         )
 
@@ -294,28 +362,19 @@ def _(
 
     # w definition: w[p1,p2] can only be 1 if p1 and p2 partnered at least once
     for (p1, p2), w_var in w.items():
-        model.add(w_var <= sum(x[(p1, p2, r, c)] for r in rounds for c in courts))
+        model.add(w_var <= sum(x[(p1, p2, r, c, t)] for r in rounds for c in courts for t in range(2)))
 
-    # Skill balance: use sum-based pair skill (CP-SAT requires integers; avg = sum/2)
+    # Skill balance: diff[r,c] = |avg_skill_team0 - avg_skill_team1| on court c in round r
+    # Using level sums (integers); diff is linearised absolute value via two constraints
     _level = {p["user_id"]: p["level"] for p in player_data}
     _pair_skill = {(p1, p2): _level[p1] + _level[p2] for (p1, p2) in player_pairs}
-    _skill_vals = list(_pair_skill.values())
-    _max_diff = max(_skill_vals) - min(_skill_vals)
-
-    D_max = model.new_int_var(0, _max_diff, 'D_max')
-    D_min = model.new_int_var(0, _max_diff, 'D_min')
-
-    for _i, _A in enumerate(player_pairs):
-        for _B in player_pairs[_i + 1:]:
-            if _A[0] in _B or _A[1] in _B:
-                continue
-            _diff = abs(_pair_skill[_A] - _pair_skill[_B])
-            for _r in rounds:
-                for _c in courts:
-                    _assigned = x[_A + (_r, _c)] + x[_B + (_r, _c)]
-                    model.add(D_max >= _diff * (_assigned - 1))
-                    model.add(D_min <= _diff + _max_diff * (2 - _assigned))
-    return D_max, D_min
+    for r in rounds:
+        for c in courts:
+            _s0 = sum(_pair_skill[(p1, p2)] * x[(p1, p2, r, c, 0)] for (p1, p2) in player_pairs)
+            _s1 = sum(_pair_skill[(p1, p2)] * x[(p1, p2, r, c, 1)] for (p1, p2) in player_pairs)
+            model.add(diff[(r, c)] >= _s0 - _s1)
+            model.add(diff[(r, c)] >= _s1 - _s0)
+    return
 
 
 @app.cell(hide_code=True)
@@ -330,9 +389,9 @@ def _(mo):
 def _(courts, player_pairs, preference_score, rounds, x):
     # Objective 1: maximise partner preference scores (already scaled by SCALE)
     obj_preference = (
-        [x[(p1, p2, r, c)] for (p1, p2) in player_pairs for r in rounds for c in courts],
+        [x[(p1, p2, r, c, t)] for (p1, p2) in player_pairs for r in rounds for c in courts for t in range(2)],
         [preference_score.get((p1, p2), 0) + preference_score.get((p2, p1), 0)
-         for (p1, p2) in player_pairs for r in rounds for c in courts],
+         for (p1, p2) in player_pairs for r in rounds for c in courts for t in range(2)],
     )
     return (obj_preference,)
 
@@ -352,10 +411,9 @@ def _(SCALE, consec3):
 
 
 @app.cell
-def _(D_max, D_min, SCALE):
-    # Objective 5: minimise spread of skill differences across games
-    # Pair skill uses sum (not avg) so coef is -5*SCALE to keep the same per-avg-unit weight
-    obj_skill_balance = ([D_max, D_min], [-5 * SCALE, 5 * SCALE])
+def _(SCALE, diff):
+    # Objective 5: minimise sum of skill differences across all games
+    obj_skill_balance = (list(diff.values()), [-10 * SCALE] * len(diff))
     return (obj_skill_balance,)
 
 
@@ -402,7 +460,7 @@ def _(cp_model, mo, model):
         cp_model.MODEL_INVALID: ("MODEL_INVALID", "red"),
     }
     cp_solver = cp_model.CpSolver()
-    cp_solver.parameters.max_time_in_seconds = 900
+    cp_solver.parameters.max_time_in_seconds = 420
     solve_status = cp_solver.solve(model)
     _label, _color = _status_map.get(solve_status, (f"UNKNOWN ({solve_status})", "red"))
     mo.callout(
@@ -430,21 +488,26 @@ def _(
         _court_teams = {}
         for _c in courts:
             _court_teams[_c] = [
-                (_p1, _p2) for (_p1, _p2) in player_pairs
-                if cp_solver.boolean_value(x[(_p1, _p2, _r, _c)])
+                next(
+                    ((_p1, _p2) for (_p1, _p2) in player_pairs
+                     if cp_solver.boolean_value(x[(_p1, _p2, _r, _c, _t)])),
+                    None
+                )
+                for _t in range(2)
             ]
 
         _playing = {
             _p
             for _c in courts
-            for (_p1, _p2) in _court_teams[_c]
-            for _p in (_p1, _p2)
+            for _pair in _court_teams[_c]
+            if _pair is not None
+            for _p in _pair
         }
         _on_break = ", ".join(_name[_p] for _p in players if _p not in _playing)
 
         for _i, _c in enumerate(courts):
             _teams = _court_teams[_c]
-            if len(_teams) == 2:
+            if _teams[0] and _teams[1]:
                 _t1 = f"{_name[_teams[0][0]]} / {_name[_teams[0][1]]}"
                 _t2 = f"{_name[_teams[1][0]]} / {_name[_teams[1][1]]}"
             else:
@@ -454,11 +517,11 @@ def _(
             if _i == 0:
                 _rows.append(
                     f"<tr>"
-                    f"<td rowspan='2' style='text-align:center;padding:4px 8px'>{_r + 1}</td>"
+                    f"<td rowspan='{len(courts)}' style='text-align:center;padding:4px 8px'>{_r + 1}</td>"
                     f"<td style='text-align:center;padding:4px 8px'>{_c + 1}</td>"
                     f"<td style='padding:4px 8px'>{_t1}</td>"
                     f"<td style='padding:4px 8px'>{_t2}</td>"
-                    f"<td rowspan='2' style='padding:4px 8px'>{_on_break}</td>"
+                    f"<td rowspan='{len(courts)}' style='padding:4px 8px'>{_on_break}</td>"
                     f"</tr>"
                 )
             else:
