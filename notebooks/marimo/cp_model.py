@@ -463,7 +463,7 @@ def _(courts, cp_model, player_data, player_pairs, players, rounds, x):
             os.makedirs("solution", exist_ok=True)
 
         def on_solution_callback(self):
-            print(f"  obj={self.objective_value:.0f}  t={self.wall_time():.1f}s")
+            print(f"  obj={self.objective_value:.0f}  t={self.wall_time:.1f}s")
             if time.time() - self._last_saved < 180:  # 2.5 minutes
                 return
             self._last_saved = time.time()
@@ -514,7 +514,7 @@ def _(courts, cp_model, player_data, player_pairs, players, rounds, x):
                             f"</tr>"
                         )
             _html = (
-                f"<!-- obj={self.objective_value:.0f} t={self.wall_time():.1f}s -->"
+                f"<!-- obj={self.objective_value:.0f} t={self.wall_time:.1f}s -->"
                 "<table border='1' style='border-collapse:collapse;width:100%'>"
                 "<thead><tr>"
                 "<th style='padding:4px 8px'>Round</th>"
