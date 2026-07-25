@@ -451,7 +451,91 @@ def _(model):
 
 
 @app.cell
-def _(cp_model, mo, model):
+def _(courts, cp_model, player_data, player_pairs, players, rounds, x):
+    import os
+    import time
+
+    class ScheduleCheckpointer(cp_model.CpSolverSolutionCallback):
+        def __init__(self):
+            super().__init__()
+            self._name = {p["user_id"]: p["name"] for p in player_data}
+            self._last_saved = 0
+            os.makedirs("solution", exist_ok=True)
+
+        def on_solution_callback(self):
+            print(f"  obj={self.objective_value:.0f}  t={self.wall_time():.1f}s")
+            if time.time() - self._last_saved < 180:  # 2.5 minutes
+                return
+            self._last_saved = time.time()
+            _rows = []
+            for _r in rounds:
+                _court_teams = {}
+                for _c in courts:
+                    _court_teams[_c] = [
+                        next(
+                            ((_p1, _p2) for (_p1, _p2) in player_pairs
+                             if self.boolean_value(x[(_p1, _p2, _r, _c, _t)])),
+                            None
+                        )
+                        for _t in range(2)
+                    ]
+                _playing = {
+                    _p
+                    for _c in courts
+                    for _pair in _court_teams[_c]
+                    if _pair is not None
+                    for _p in _pair
+                }
+                _on_break = ", ".join(self._name[_p] for _p in players if _p not in _playing)
+                for _i, _c in enumerate(courts):
+                    _teams = _court_teams[_c]
+                    if _teams[0] and _teams[1]:
+                        _t1 = f"{self._name[_teams[0][0]]} / {self._name[_teams[0][1]]}"
+                        _t2 = f"{self._name[_teams[1][0]]} / {self._name[_teams[1][1]]}"
+                    else:
+                        _t1 = "—"
+                        _t2 = "—"
+                    if _i == 0:
+                        _rows.append(
+                            f"<tr>"
+                            f"<td rowspan='{len(courts)}' style='text-align:center;padding:4px 8px'>{_r + 1}</td>"
+                            f"<td style='text-align:center;padding:4px 8px'>{_c + 1}</td>"
+                            f"<td style='padding:4px 8px'>{_t1}</td>"
+                            f"<td style='padding:4px 8px'>{_t2}</td>"
+                            f"<td rowspan='{len(courts)}' style='padding:4px 8px'>{_on_break}</td>"
+                            f"</tr>"
+                        )
+                    else:
+                        _rows.append(
+                            f"<tr>"
+                            f"<td style='text-align:center;padding:4px 8px'>{_c + 1}</td>"
+                            f"<td style='padding:4px 8px'>{_t1}</td>"
+                            f"<td style='padding:4px 8px'>{_t2}</td>"
+                            f"</tr>"
+                        )
+            _html = (
+                f"<!-- obj={self.objective_value:.0f} t={self.wall_time():.1f}s -->"
+                "<table border='1' style='border-collapse:collapse;width:100%'>"
+                "<thead><tr>"
+                "<th style='padding:4px 8px'>Round</th>"
+                "<th style='padding:4px 8px'>Court</th>"
+                "<th style='padding:4px 8px'>Team 1</th>"
+                "<th style='padding:4px 8px'>Team 2</th>"
+                "<th style='padding:4px 8px'>Break</th>"
+                "</tr></thead>"
+                "<tbody>" + "".join(_rows) + "</tbody>"
+                "</table>"
+            )
+            with open(f"solution/schedule_best_{time.strftime('%Y-%m-%d_%H-%M-%S')}.html", "w") as _f:
+                _f.write(_html)
+            print(f"  -> checkpoint saved to solution/schedule_best_{time.strftime('%Y-%m-%d_%H-%M-%S')}.html")
+
+    checkpointer = ScheduleCheckpointer()
+    return (checkpointer,)
+
+
+@app.cell
+def _(checkpointer, cp_model, mo, model):
     _status_map = {
         cp_model.OPTIMAL: ("OPTIMAL", "green"),
         cp_model.FEASIBLE: ("FEASIBLE", "orange"),
@@ -460,99 +544,90 @@ def _(cp_model, mo, model):
         cp_model.MODEL_INVALID: ("MODEL_INVALID", "red"),
     }
     cp_solver = cp_model.CpSolver()
-    cp_solver.parameters.max_time_in_seconds = 420
-    solve_status = cp_solver.solve(model)
+    cp_solver.parameters.max_time_in_seconds = 1800
+    solve_status = cp_solver.solve(model, checkpointer)
     _label, _color = _status_map.get(solve_status, (f"UNKNOWN ({solve_status})", "red"))
     mo.callout(
         mo.md(f"Solver status: **{_label}**"),
         kind="success" if _color == "green" else "warn" if _color == "orange" else "danger" if _color == "red" else "info"
     )
-    return cp_solver, solve_status
+    return
 
 
 @app.cell
-def _(
-    courts,
-    cp_solver,
-    player_data,
-    player_pairs,
-    players,
-    rounds,
-    solve_status,
-    x,
-):
-    _name = {p["user_id"]: p["name"] for p in player_data}
-    _rows = []
+def _():
+    # _name = {p["user_id"]: p["name"] for p in player_data}
+    # _rows = []
 
-    for _r in rounds:
-        _court_teams = {}
-        for _c in courts:
-            _court_teams[_c] = [
-                next(
-                    ((_p1, _p2) for (_p1, _p2) in player_pairs
-                     if cp_solver.boolean_value(x[(_p1, _p2, _r, _c, _t)])),
-                    None
-                )
-                for _t in range(2)
-            ]
+    # for _r in rounds:
+    #     _court_teams = {}
+    #     for _c in courts:
+    #         _court_teams[_c] = [
+    #             next(
+    #                 ((_p1, _p2) for (_p1, _p2) in player_pairs
+    #                  if cp_solver.boolean_value(x[(_p1, _p2, _r, _c, _t)])),
+    #                 None
+    #             )
+    #             for _t in range(2)
+    #         ]
 
-        _playing = {
-            _p
-            for _c in courts
-            for _pair in _court_teams[_c]
-            if _pair is not None
-            for _p in _pair
-        }
-        _on_break = ", ".join(_name[_p] for _p in players if _p not in _playing)
+    #     _playing = {
+    #         _p
+    #         for _c in courts
+    #         for _pair in _court_teams[_c]
+    #         if _pair is not None
+    #         for _p in _pair
+    #     }
+    #     _on_break = ", ".join(_name[_p] for _p in players if _p not in _playing)
 
-        for _i, _c in enumerate(courts):
-            _teams = _court_teams[_c]
-            if _teams[0] and _teams[1]:
-                _t1 = f"{_name[_teams[0][0]]} / {_name[_teams[0][1]]}"
-                _t2 = f"{_name[_teams[1][0]]} / {_name[_teams[1][1]]}"
-            else:
-                _t1 = "—"
-                _t2 = "—"
+    #     for _i, _c in enumerate(courts):
+    #         _teams = _court_teams[_c]
+    #         if _teams[0] and _teams[1]:
+    #             _t1 = f"{_name[_teams[0][0]]} / {_name[_teams[0][1]]}"
+    #             _t2 = f"{_name[_teams[1][0]]} / {_name[_teams[1][1]]}"
+    #         else:
+    #             _t1 = "—"
+    #             _t2 = "—"
 
-            if _i == 0:
-                _rows.append(
-                    f"<tr>"
-                    f"<td rowspan='{len(courts)}' style='text-align:center;padding:4px 8px'>{_r + 1}</td>"
-                    f"<td style='text-align:center;padding:4px 8px'>{_c + 1}</td>"
-                    f"<td style='padding:4px 8px'>{_t1}</td>"
-                    f"<td style='padding:4px 8px'>{_t2}</td>"
-                    f"<td rowspan='{len(courts)}' style='padding:4px 8px'>{_on_break}</td>"
-                    f"</tr>"
-                )
-            else:
-                _rows.append(
-                    f"<tr>"
-                    f"<td style='text-align:center;padding:4px 8px'>{_c + 1}</td>"
-                    f"<td style='padding:4px 8px'>{_t1}</td>"
-                    f"<td style='padding:4px 8px'>{_t2}</td>"
-                    f"</tr>"
-                )
+    #         if _i == 0:
+    #             _rows.append(
+    #                 f"<tr>"
+    #                 f"<td rowspan='{len(courts)}' style='text-align:center;padding:4px 8px'>{_r + 1}</td>"
+    #                 f"<td style='text-align:center;padding:4px 8px'>{_c + 1}</td>"
+    #                 f"<td style='padding:4px 8px'>{_t1}</td>"
+    #                 f"<td style='padding:4px 8px'>{_t2}</td>"
+    #                 f"<td rowspan='{len(courts)}' style='padding:4px 8px'>{_on_break}</td>"
+    #                 f"</tr>"
+    #             )
+    #         else:
+    #             _rows.append(
+    #                 f"<tr>"
+    #                 f"<td style='text-align:center;padding:4px 8px'>{_c + 1}</td>"
+    #                 f"<td style='padding:4px 8px'>{_t1}</td>"
+    #                 f"<td style='padding:4px 8px'>{_t2}</td>"
+    #                 f"</tr>"
+    #             )
 
-    schedule_html = (
-        f"<!-- solve_status={solve_status} -->"
-        "<table border='1' style='border-collapse:collapse;width:100%'>"
-        "<thead><tr>"
-        "<th style='padding:4px 8px'>Round</th>"
-        "<th style='padding:4px 8px'>Court</th>"
-        "<th style='padding:4px 8px'>Team 1</th>"
-        "<th style='padding:4px 8px'>Team 2</th>"
-        "<th style='padding:4px 8px'>Break</th>"
-        "</tr></thead>"
-        "<tbody>" + "".join(_rows) + "</tbody>"
-        "</table>"
-    )
-    return (schedule_html,)
+    # schedule_html = (
+    #     f"<!-- solve_status={solve_status} -->"
+    #     "<table border='1' style='border-collapse:collapse;width:100%'>"
+    #     "<thead><tr>"
+    #     "<th style='padding:4px 8px'>Round</th>"
+    #     "<th style='padding:4px 8px'>Court</th>"
+    #     "<th style='padding:4px 8px'>Team 1</th>"
+    #     "<th style='padding:4px 8px'>Team 2</th>"
+    #     "<th style='padding:4px 8px'>Break</th>"
+    #     "</tr></thead>"
+    #     "<tbody>" + "".join(_rows) + "</tbody>"
+    #     "</table>"
+    # )
+    return
 
 
 @app.cell
-def _(schedule_html):
-    with open("schedule.html", "w") as _f:
-        _f.write(schedule_html)
+def _():
+    # with open("schedule.html", "w") as _f:
+    #     _f.write(schedule_html)
     return
 
 
