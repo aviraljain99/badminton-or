@@ -535,7 +535,35 @@ def _(courts, cp_model, player_data, player_pairs, players, rounds, x):
 
 
 @app.cell
-def _(checkpointer, cp_model, mo, model):
+def _(courts, model, player_data, player_pairs, players, rounds, x):
+    _level = {p["user_id"]: p["level"] for p in player_data}
+    _pairs_set = set(player_pairs)
+    _breaks = {p: 0 for p in players}
+    _break_count = len(players) - len(courts) * 4
+
+    for _r in rounds:
+        _by_breaks = sorted(players, key=lambda p: (_breaks[p], players.index(p)))
+        _break_players = set(_by_breaks[:_break_count])
+        for _p in _break_players:
+            _breaks[_p] += 1
+
+        _active = sorted(
+            [p for p in players if p not in _break_players],
+            key=lambda p: _level[p], reverse=True
+        )
+        for _c in courts:
+            _cp = _active[_c * 4:(_c + 1) * 4]
+            for _team, (_a, _b) in enumerate([(_cp[0], _cp[3]), (_cp[1], _cp[2])]):
+                _pair = (_a, _b) if (_a, _b) in _pairs_set else (_b, _a)
+                model.add_hint(x[(_pair[0], _pair[1], _r, _c, _team)], 1)
+
+    print(f"Warm start: hints set for {len(rounds)} rounds × {len(courts)} courts")
+    warm_start_done = True
+    return (warm_start_done,)
+
+
+@app.cell
+def _(checkpointer, cp_model, mo, model, warm_start_done):
     _status_map = {
         cp_model.OPTIMAL: ("OPTIMAL", "green"),
         cp_model.FEASIBLE: ("FEASIBLE", "orange"),
