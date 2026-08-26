@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.14"
+__generated_with = "0.24.0"
 app = marimo.App(width="full")
 
 
@@ -28,85 +28,12 @@ def _(mo):
 
 @app.cell
 def _():
-    # player partner preference
-    player_preferences = {
-        "sandy" : {
-            "pair_up_preference" : [
-                ("sumit", 1),
-                ("harry", 2),
-                ("thenes", 3),
-                ("jack", 4),
-            ],
-            "avoid" : ["akhil_srikanth", "lesley", "yaw", "anoop", "naresh"]
-        },
-        "thenes" : {
-            "pair_up_preference" : [
-                ("sumit", 1),
-                ("harry", 2),
-                ("suandi", 3)
-            ],
-            "avoid" : ["andy", "lesley", "ulf"]
-        },
-        # "habby" : {
-        #     "pair_up_preference" : [
-        #         ("sumit", 1),
-        #         ("thenes", 2),
-        #         ("harry", 3),
-        #     ],
-        #     "avoid" : ["shahar", "raheel", "ulf", "wilson"]
-        # },
-        "naresh" : {
-            "pair_up_preference" : [
-                ("sumit", 1),
-                ("suandi", 2),
-                ("harry", 3),
-                ("andy", 4),
-            ],
-            "avoid" : []
-        },
-        "jack" : {
-            "pair_up_preference" : [],
-            "avoid" : ["andy", "sachi"]
-        },
+    from session_config import COURTS, PLAYER_DATA, PLAYER_PREFERENCES, ROUNDS
 
-    }
-    return (player_preferences,)
-
-
-@app.cell
-def _():
-    player_data = [
-        {"user_id": "thenes", "name": "Thenes", "member": True, "level" : 5},
-        {"user_id": "jack", "name": "Jack", "member": True, "level" : 5},
-        {"user_id": "andy", "name": "Andy", "member": True, "level" : 5},
-        {"user_id": "suandi", "name": "Suandi", "member": True, "level" : 5},
-        {"user_id": "harry", "name": "Harry", "member": True, "level" : 4},
-        {"user_id": "lesley", "name": "Lesley", "member": True, "level" : 1},
-        {"user_id": "sumit", "name": "Sumit", "member": True, "level" : 5},
-        {"user_id": "naresh", "name": "Naresh", "member": True, "level" : 3},
-        {"user_id": "aviral", "name": "Aviral", "member": True, "level" : 3},
-        {"user_id": "yaw", "name": "Yaw", "member": True, "level" : 4},
-        {"user_id": "pritto", "name": "Pritto", "member": True, "level" : 2},
-        {"user_id": "sachi", "name": "Sachi", "member": True, "level" : 2},
-        {"user_id": "kelvin", "name": "Kelvin", "member": True, "level" : 5},
-        {"user_id": "barrie", "name": "Barrie", "member": True, "level" : 5},
-        {"user_id": "annie", "name": "Annie", "member": True, "level" : 4},
-
-        # casuals
-        {"user_id": "nithin", "name": "Nithin", "member": False, "level" : 3},
-        {"user_id": "shahar", "name": "Shahar", "member": False, "level" : 4},
-        {"user_id": "danish", "name": "Danish", "member": False, "level" : 3},
-        {"user_id": "hridaan", "name": "Hridaan", "member": False, "level" : 5},
-        {"user_id": "chinu", "name": "Chinu", "member": False, "level" : 5},
-        {"user_id": "karthik", "name": "Karthik", "member": False, "level" : 4},
-        {"user_id": "hamza", "name": "Hamza", "member": False, "level" : 2},
-    ]
-
-    ROUNDS = 10
-    COURTS = 4
-    N_PLAYERS = len(player_data)
-    print(N_PLAYERS)
-    return COURTS, ROUNDS, player_data
+    player_data = PLAYER_DATA
+    player_preferences = PLAYER_PREFERENCES
+    print(len(player_data))
+    return COURTS, ROUNDS, player_data, player_preferences
 
 
 @app.cell
@@ -122,9 +49,9 @@ def _(player_data, player_preferences):
         if l_p == 0:
             return 0
         if p_prime in pair_up:
-            return (10 / (l_p + 1)) * (l_p + 2 - pair_up[p_prime])
+            return (12 / (l_p + 1)) * (l_p + 2 - pair_up[p_prime])
         else:
-            return 10 / (l_p + 1)
+            return 12 / (l_p + 1)
 
     _players = [p["user_id"] for p in player_data]
     preference_score = {
@@ -559,11 +486,11 @@ def _(courts, model, player_data, player_pairs, players, rounds, x):
 
     print(f"Warm start: hints set for {len(rounds)} rounds × {len(courts)} courts")
     warm_start_done = True
-    return (warm_start_done,)
+    return
 
 
 @app.cell
-def _(checkpointer, cp_model, mo, model, warm_start_done):
+def _(checkpointer, cp_model, mo, model):
     _status_map = {
         cp_model.OPTIMAL: ("OPTIMAL", "green"),
         cp_model.FEASIBLE: ("FEASIBLE", "orange"),
