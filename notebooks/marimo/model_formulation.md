@@ -12,6 +12,7 @@
 | $P_M \subseteq P$ | Member players |
 | $P_K \subseteq P$ | Casual players |
 | $P_{\bar{c}} \subseteq P$ | Players exempt from the consecutive-games penalty (flagged `ok_with_consecutive_games`) |
+| $P_C \subseteq P$ | Players who prefer competitive games (flagged `prefers_competitive_games`) |
 | $A \subseteq \mathcal{P}$ | Avoided pairs (never permitted to partner) |
 
 ## Parameters
@@ -33,6 +34,7 @@
 | $w_{p_1 p_2}$ | Binary | 1 if pair $(p_1, p_2)$ partners at least once during the session |
 | $\text{consec3}_{p r}$ | Binary | 1 if player $p$ plays in all three of rounds $r$, $r+1$, $r+2$; defined only for $p \in P \setminus P_{\bar{c}}$ |
 | $\text{diff}_{r c}$ | Integer $\geq 0$ | Absolute skill difference between the two teams in game $(r, c)$ |
+| $\text{pgap}_{p r}$ | Integer $\geq 0$ | Skill gap between player $p$ and their partner in round $r$ ($0$ if on break); defined only for $p \in P_C$ |
 | $M$ | Integer | Maximum number of games played by any player |
 | $m$ | Integer | Minimum number of games played by any player |
 
@@ -102,6 +104,16 @@ $$\text{diff}_{rc} \;\geq\; \sum_{(p_1,p_2) \in \mathcal{P}} s_{p_1 p_2}\, x_{p_
 
 $$\text{diff}_{rc} \;\geq\; \sum_{(p_1,p_2) \in \mathcal{P}} s_{p_1 p_2}\, x_{p_1 p_2 r c 1} \;-\; \sum_{(p_1,p_2) \in \mathcal{P}} s_{p_1 p_2}\, x_{p_1 p_2 r c 0} \qquad \forall\, r \in R,\; c \in C$$
 
+**$\text{pgap}_{pr}$ definition** (absolute value linearisation, competitive players only)
+
+Let $\text{plev}_{pr} = \displaystyle\sum_{\substack{(p_1,p_2) \in \mathcal{P} \\ p \in \{p_1,p_2\}}} \sum_{c \in C} \sum_{t \in T} \ell_{\,\text{partner}(p_1,p_2,p)}\, x_{p_1 p_2 r c t}$ be the level of $p$'s partner in round $r$ (0 if $p$ is on break), where $\text{partner}(p_1,p_2,p)$ is whichever of $p_1, p_2$ is not $p$.
+
+$$\text{pgap}_{p r} \;\geq\; \ell_p\, z_{p r} \;-\; \text{plev}_{pr} \qquad \forall\, p \in P_C,\; r \in R$$
+
+$$\text{pgap}_{p r} \;\geq\; \text{plev}_{pr} \;-\; \ell_p\, z_{p r} \qquad \forall\, p \in P_C,\; r \in R$$
+
+Gating the own-level term by $z_{pr}$ makes the gap collapse to $0$ when $p$ is on break; when $p$ plays it reduces to $|\ell_p - \ell_{\text{partner}}|$.
+
 ## Symmetry-Breaking Constraints
 
 Let $\text{idx}(p_1, p_2)$ denote the index of pair $(p_1, p_2)$ in the ordered list $\mathcal{P}$.
@@ -118,7 +130,7 @@ $$\sum_{(p_1,p_2) \in \mathcal{P}} \text{idx}(p_1,p_2)\cdot x_{p_1 p_2 r c 0} \;
 
 Maximise the weighted sum:
 
-$$\max \quad \alpha_1 \cdot f_{\text{pref}} + \alpha_2 \cdot f_{\text{variety}} + \alpha_3 \cdot f_{\text{equality}} + \alpha_4 \cdot f_{\text{consec}} + \alpha_5 \cdot f_{\text{skill}}$$
+$$\max \quad \alpha_1 \cdot f_{\text{pref}} + \alpha_2 \cdot f_{\text{variety}} + \alpha_3 \cdot f_{\text{equality}} + \alpha_4 \cdot f_{\text{consec}} + \alpha_5 \cdot f_{\text{skill}} + \alpha_6 \cdot f_{\text{comp}}$$
 
 where:
 
@@ -134,4 +146,6 @@ $$f_{\text{consec}} = -\sum_{p \in P \setminus P_{\bar{c}}} \sum_{r=0}^{R_{\max}
 
 $$f_{\text{skill}} = -\sum_{r \in R} \sum_{c \in C} \text{diff}_{r c}$$
 
-All terms are scaled to a common integer unit before being combined.
+$$f_{\text{comp}} = -\sum_{p \in P_C} \sum_{r \in R} \text{pgap}_{p r}$$
+
+All terms are scaled to a common integer unit before being combined. In the implementation $\alpha_4 = \alpha_5 = \alpha_6$ (weight $10$).

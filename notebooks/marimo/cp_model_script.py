@@ -125,6 +125,22 @@ consec3 = {
     for r in range(ROUNDS - 2)
 }
 
+# Players who flagged that they want competitive games — they are penalised for
+# the skill gap to their partner (no var is created for anyone else).
+competitive = {
+    p
+    for p in players
+    if player_preferences.get(p, {}).get("prefers_competitive_games", False)
+}
+
+# partner_gap[p, r]: |level[p] - level[p's partner]| in round r (0 if on break),
+# for competitive players only
+partner_gap = {
+    (p, r): model.new_int_var(0, _max_possible_diff, f"partner_gap_{p}_{r}")
+    for p in competitive
+    for r in rounds
+}
+
 # ---------------------------------------------------------------------------
 # Constraints
 # ---------------------------------------------------------------------------
@@ -282,6 +298,20 @@ for r in rounds:
         model.add(diff[(r, c)] >= _s0 - _s1)
         model.add(diff[(r, c)] >= _s1 - _s0)
 
+# Competitive players: partner_gap[p,r] = |level[p] - level[partner]| in round r.
+# partner_level is level[partner] when p plays and 0 when p is on break; gating the
+# own-level term by z[p,r] makes the gap collapse to 0 on a break.
+for (p, r) in partner_gap:
+    _partner_level = sum(
+        (_level[p2] if p1 == p else _level[p1]) * x[(p1, p2, r, c, t)]
+        for (p1, p2) in player_pairs
+        for c in courts
+        for t in range(2)
+        if p1 == p or p2 == p
+    )
+    model.add(partner_gap[(p, r)] >= _level[p] * z[(p, r)] - _partner_level)
+    model.add(partner_gap[(p, r)] >= _partner_level - _level[p] * z[(p, r)])
+
 # ---------------------------------------------------------------------------
 # Objective
 # ---------------------------------------------------------------------------
@@ -314,10 +344,20 @@ obj_consecutive = (list(consec3.values()), [-10 * SCALE] * len(consec3))
 # Objective 5: minimise sum of skill differences across all games
 obj_skill_balance = (list(diff.values()), [-10 * SCALE] * len(diff))
 
+# Objective 6: for competitive players, minimise the summed skill gap to their
+# partner across all rounds
+obj_competitive = (list(partner_gap.values()), [-10 * SCALE] * len(partner_gap))
+
 # Objective 3: maximise equality — assemble all objectives and set on model
 _all_vars = []
 _all_coefs = []
-for _vl, _cl in [obj_preference, obj_variety, obj_consecutive, obj_skill_balance]:
+for _vl, _cl in [
+    obj_preference,
+    obj_variety,
+    obj_consecutive,
+    obj_skill_balance,
+    obj_competitive,
+]:
     _all_vars.extend(_vl)
     _all_coefs.extend(_cl)
 # equality: -10 * SCALE * (M - m) = -10*SCALE*M + 10*SCALE*m

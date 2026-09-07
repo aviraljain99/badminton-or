@@ -30,6 +30,7 @@ PLAYER_PREFERENCES = {
             ("nithin", 4),
         ],
         "avoid": ["akhil_srikanth", "lesley", "yaw", "anoop", "naresh", "andy"],
+        "prefers_competitive_games": True,
     },
     "thenes": {
         "pair_up_preference": [
@@ -53,6 +54,7 @@ PLAYER_PREFERENCES = {
         "pair_up_preference": [],
         "avoid": [],
         "ok_with_consecutive_games": True,
+        "prefers_competitive_games": True,
     },
     # "habby": {
     #     "pair_up_preference": [

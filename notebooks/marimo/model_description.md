@@ -54,6 +54,9 @@ Playing three rounds in a row without a break is tiring. The model penalises eac
 ### 5. Skill balance
 Each game is scored by the absolute difference in total skill level between the two teams. The model minimises the sum of these differences across all games in the session, pushing every match toward being as evenly matched as possible.
 
+### 6. Competitive players
+Players who flag `prefers_competitive_games` want to be paired with a partner near their own skill level. For each such player and each round, the model measures the absolute skill gap to their partner (zero when they are on a break) and penalises the sum of these gaps across the session. Combined with the skill-balance objective — a team of two equals is most easily balanced against another team of two equals — this also tends to give them opponents at their level. It is a soft nudge, not a guarantee: it competes with the player's own partner preferences and with partnership variety, and there may not be enough same-level players to satisfy every competitive player every round.
+
 ---
 
 ## Symmetry Breaking
