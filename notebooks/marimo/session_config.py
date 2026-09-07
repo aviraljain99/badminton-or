@@ -47,6 +47,12 @@ PLAYER_PREFERENCES = {
             ("rahul", 3),
         ],
         "avoid": [],
+        "ok_with_consecutive_games": True,
+    },
+    "andy": {
+        "pair_up_preference": [],
+        "avoid": [],
+        "ok_with_consecutive_games": True,
     },
     # "habby": {
     #     "pair_up_preference": [
@@ -104,4 +110,17 @@ PLAYER_PREFERENCES = {
         ],
         "avoid": [],
     },
+}
+
+# Per-round availability rules. Round numbers are 1-indexed (Round 1 == first round).
+# Supported keys per player:
+#   must_play         list[int]  rounds the player must be scheduled to play
+#   must_not_play     list[int]  rounds the player must sit out
+#   unavailable_from  int        player is absent from this round onward (inclusive)
+#   available_from    int        player is absent before this round (arrives late)
+PLAYER_ALLOCATIONS = {
+    "andy": {"must_play": [1]},
+    "suandi": {"must_play": [1]},
+    "pritto": {"unavailable_from": 7},
+    "lesley": {"must_not_play": [1]},
 }

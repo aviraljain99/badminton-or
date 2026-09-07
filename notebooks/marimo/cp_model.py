@@ -28,12 +28,19 @@ def _(mo):
 
 @app.cell
 def _():
-    from session_config import COURTS, PLAYER_DATA, PLAYER_PREFERENCES, ROUNDS
+    from session_config import (
+        COURTS,
+        PLAYER_ALLOCATIONS,
+        PLAYER_DATA,
+        PLAYER_PREFERENCES,
+        ROUNDS,
+    )
 
     player_data = PLAYER_DATA
     player_preferences = PLAYER_PREFERENCES
+    player_allocations = PLAYER_ALLOCATIONS
     print(len(player_data))
-    return COURTS, ROUNDS, player_data, player_preferences
+    return COURTS, ROUNDS, player_allocations, player_data, player_preferences
 
 
 @app.cell
@@ -132,10 +139,18 @@ def _(COURTS, ROUNDS, cp_model, player_data, player_preferences):
         if (p1, p2) not in _avoided
     }
 
+    # Players who flagged that they don't mind long streaks are exempted from the
+    # 3-consecutive-games penalty (no consec3 var is created for them).
+    consec_exempt = {
+        p for p in players
+        if player_preferences.get(p, {}).get("ok_with_consecutive_games", False)
+    }
+
     # consec3[p, r]: 1 if player p plays in rounds r, r+1, and r+2
     consec3 = {
         (p, r): model.new_bool_var(f'consec3_{p}_{r}')
         for p in players
+        if p not in consec_exempt
         for r in range(ROUNDS - 2)
     }
     return (
@@ -172,6 +187,7 @@ def _(
     diff,
     m,
     model,
+    player_allocations,
     player_data,
     player_pairs,
     player_preferences,
@@ -248,20 +264,57 @@ def _(
                 )
             )
 
+    # Player allocations: round-level availability rules from PLAYER_ALLOCATIONS.
+    # Round numbers in the config are 1-indexed; internally rounds are 0-indexed.
+    _players_set = set(players)
+    available_rounds = {p: set(rounds) for p in players}
+    for p, _alloc in player_allocations.items():
+        if p not in _players_set:
+            continue
+        for _rnd in _alloc.get("must_not_play", []):
+            available_rounds[p].discard(_rnd - 1)
+        _from = _alloc.get("unavailable_from")
+        if _from is not None:
+            available_rounds[p] -= {r for r in rounds if r >= _from - 1}
+        _arrive = _alloc.get("available_from")
+        if _arrive is not None:
+            available_rounds[p] -= {r for r in rounds if r < _arrive - 1}
+
+    # Constraint 4a: a player never plays a round they are unavailable for
+    for p in players:
+        for r in rounds:
+            if r not in available_rounds[p]:
+                model.add(z[(p, r)] == 0)
+
+    # Constraint 4b: a player must play the rounds they are required to play
+    required_rounds = {p: set() for p in players}
+    for p, _alloc in player_allocations.items():
+        if p not in _players_set:
+            continue
+        for _rnd in _alloc.get("must_play", []):
+            assert (_rnd - 1) in available_rounds[p], (
+                f"{p}: must_play round {_rnd} conflicts with an unavailability rule"
+            )
+            required_rounds[p].add(_rnd - 1)
+            model.add(z[(p, _rnd - 1)] == 1)
+
     # # Constraint 5: a player can play at most 2 games in 3 consecutive rounds
     # for p in players:
     #     for r in range(ROUNDS - 2):
     #         model.add(z[(p, r)] + z[(p, r + 1)] + z[(p, r + 2)] <= 2)
 
     # consec3 definition: consec3[p,r] = 1 if player p plays in all 3 of rounds r, r+1, r+2
-    for p in players:
-        for r in range(ROUNDS - 2):
-            model.add(consec3[(p, r)] >= z[(p, r)] + z[(p, r + 1)] + z[(p, r + 2)] - 2)
+    # (only defined for players not exempt from the consecutive-games penalty)
+    for (p, r), _c3 in consec3.items():
+        model.add(_c3 >= z[(p, r)] + z[(p, r + 1)] + z[(p, r + 2)] - 2)
 
     # Constraint 6: a player can be on break for at most 1 consecutive round
+    # (only enforced across rounds the player is actually available for — an
+    # unavailable round is an absence, not a break, and breaks the chain)
     for p in players:
         for r in range(ROUNDS - 1):
-            model.add(z[(p, r)] + z[(p, r + 1)] >= 1)
+            if r in available_rounds[p] and (r + 1) in available_rounds[p]:
+                model.add(z[(p, r)] + z[(p, r + 1)] >= 1)
 
     members = [p["user_id"] for p in player_data if p["member"]]
     casuals = [p["user_id"] for p in player_data if not p["member"]]
@@ -301,7 +354,7 @@ def _(
             _s1 = sum(_pair_skill[(p1, p2)] * x[(p1, p2, r, c, 1)] for (p1, p2) in player_pairs)
             model.add(diff[(r, c)] >= _s0 - _s1)
             model.add(diff[(r, c)] >= _s1 - _s0)
-    return
+    return available_rounds, required_rounds
 
 
 @app.cell(hide_code=True)
@@ -314,10 +367,12 @@ def _(mo):
 
 @app.cell
 def _(courts, player_pairs, preference_score, rounds, x):
-    # Objective 1: maximise partner preference scores (already scaled by SCALE)
+    # Objective 1: maximise partner preference scores (already scaled by SCALE).
+    # A pair is scored by the AVERAGE of the two players' preferences for each
+    # other, not the sum, so a mutually-preferred pair is not counted twice.
     obj_preference = (
         [x[(p1, p2, r, c, t)] for (p1, p2) in player_pairs for r in rounds for c in courts for t in range(2)],
-        [preference_score.get((p1, p2), 0) + preference_score.get((p2, p1), 0)
+        [round((preference_score.get((p1, p2), 0) + preference_score.get((p2, p1), 0)) / 2)
          for (p1, p2) in player_pairs for r in rounds for c in courts for t in range(2)],
     )
     return (obj_preference,)
@@ -462,17 +517,35 @@ def _(courts, cp_model, player_data, player_pairs, players, rounds, x):
 
 
 @app.cell
-def _(courts, model, player_data, player_pairs, players, rounds, x):
+def _(
+    available_rounds,
+    courts,
+    model,
+    player_data,
+    player_pairs,
+    players,
+    required_rounds,
+    rounds,
+    x,
+):
     _level = {p["user_id"]: p["level"] for p in player_data}
     _pairs_set = set(player_pairs)
     _breaks = {p: 0 for p in players}
     _break_count = len(players) - len(courts) * 4
 
     for _r in rounds:
-        _by_breaks = sorted(players, key=lambda p: (_breaks[p], players.index(p)))
-        _break_players = set(_by_breaks[:_break_count])
+        # players who cannot play this round must sit; players required to play cannot
+        _cant_play = {p for p in players if _r not in available_rounds[p]}
+        _must_play = {p for p in players if _r in required_rounds[p]}
+        _candidates = sorted(
+            [p for p in players if p not in _cant_play and p not in _must_play],
+            key=lambda p: (_breaks[p], players.index(p)),
+        )
+        _n_extra = max(0, _break_count - len(_cant_play))
+        _break_players = _cant_play | set(_candidates[:_n_extra])
         for _p in _break_players:
-            _breaks[_p] += 1
+            if _p not in _cant_play:
+                _breaks[_p] += 1
 
         _active = sorted(
             [p for p in players if p not in _break_players],
